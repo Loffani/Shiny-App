@@ -1,0 +1,83 @@
+####Filtermodul - ui und server####
+
+#Data-querie
+
+Parameterdaten<-data.frame(fromJSON("http://XXX.XX.XY.XY/WebJSON/parameters?program=RMP_Chemie"))
+Parametergruppen<-data.frame(fromJSON("http://XXX.XX.XY.XY/WebJSON/parameterGroups?"))
+
+####Dashboard-Ui####
+
+ dashboardBody(
+tabItems(
+  tabItem(tabName = "Home", h2("Übersichtskarte Messstationen"),
+          leafletOutput("statmap"), dataTableOutput("table_mess"), downloadButton("export_button3", "Download")),
+  
+  tabItem(tabName = "Datenvisualisierung",
+          fluidPage(
+            sidebarLayout(
+              sidebarPanel(
+                style = "background-color: #CCCCCC;",
+                
+                selectInput("station", "Messstation auswählen", choices = unique(statdaten$monitoringSites.name), multiple = TRUE),
+                
+                selectInput("parameterAuswahl", "Parameter auswählen:",
+                            choices = unique(Parameterdaten$parameters.name), multiple = TRUE),
+                dateRangeInput("datumsAuswahl", "Datum auswählen:",
+                               start = "2023-01-01", end = "2023-12-31",
+                               format = "dd.mm.yyyy"), 
+                actionButton("filter_btn1", "Filter anwenden")),
+              
+              mainPanel(
+                box(
+                  width = 12, 
+                  title = "Grafikübersicht", 
+                  heigth = "200px",
+                  plotlyOutput("plotly_plot")
+                ))),
+
+
+####Server####
+
+####Filtermodul####
+
+filtered_data <- eventReactive(input$filter_btn1, {
+  filtered <- data
+  if (!is.null(input$station) && input$station != "Alle") {
+    filtered <- filtered[filtered$Messstation == input$station, ]
+  }
+  if (!is.null(input$stoff) && input$stoff != "Alle") {
+    filtered <- filtered[filtered$Stoff == input$stoff, ]
+  }
+  filtered <- filtered[filtered$Jahr >= input$jahr[1] & filtered$Jahr <= input$jahr[2], ]
+  return(filtered)
+  
+)}
+
+#filter date
+filtered_data <- eventReactive(input$filter_btn1, {
+    filtered_data <- daten %>%
+      filter(Datum >= input$datumsAuswahl[1] & Datum <= input$datumsAuswahl[2])
+    
+    if (input$phaseAuswahl != " ") {
+      filtered_data <- filtered_data %>%
+        filter(Phase == input$phaseAuswahl)
+    }
+    
+    if (input$parameterAuswahl != " ") {
+      filtered_data <- filtered_data %>%
+        filter(Parameter == input$parameterAuswahl)
+    }
+    
+    filtered_data
+  })  
+  
+
+#Plot
+
+output$plotly_plot <- renderPlotly({
+  plot_ly(data, x = ~Datum, y = ~Wert, type = 'scatter', mode = 'lines') %>%
+    layout(title = "Kupfer (mg/l)",
+           xaxis = list(title = "Datum"),
+           yaxis = list(title = "Wert"))
+})
+
